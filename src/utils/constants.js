@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.HTML_LANGS = exports.SUPPORTED_HASH_LANGS = exports.MIN_AI_INSERT_LENGTH = exports.DEBOUNCE_DELAY = exports.STALE_PROCESSING_RESET = exports.PROCESSING_TIMEOUT = exports.AI_EDITED = exports.AI_GEN_END = exports.AI_GEN_START = exports.AI_END = exports.AI_START = void 0;
+exports.AI_START = "AI_START";
+exports.AI_END = "AI_END";
+exports.AI_GEN_START = "###AI_GEN_START###";
+exports.AI_GEN_END = "###AI_GEN_END###";
+exports.AI_EDITED = "###AI_EDITED";
+exports.PROCESSING_TIMEOUT = 800;
+exports.STALE_PROCESSING_RESET = 5000;
+exports.DEBOUNCE_DELAY = 1200;
+exports.MIN_AI_INSERT_LENGTH = 20;
+exports.SUPPORTED_HASH_LANGS = ['python', 'ruby', 'yaml'];
+exports.HTML_LANGS = ['html', 'xml'];
