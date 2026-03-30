@@ -6,9 +6,9 @@ export interface AIBlock {
     date: string;
     file: string;
     lines: number;
+    hash?: string;
 }
 
-// 🔥 NEW: Scan single document
 export function extractAIBlocks(doc: vscode.TextDocument): AIBlock[] {
     const blocks: AIBlock[] = [];
 
@@ -24,13 +24,15 @@ export function extractAIBlocks(doc: vscode.TextDocument): AIBlock[] {
             const emp = line.match(/ID:\s*(\w+)/)?.[1] || "UNKNOWN";
             const date = line.match(/\|\s*(\d{2}-\d{2}-\d{4})/)?.[1] || "";
             const edited = line.match(/EditedBy:\s*(.*)/)?.[1];
+            const hash = line.match(/HASH:\s*(\w+)/)?.[1];
 
             current = {
                 employeeId: emp,
                 editedBy: edited ? edited.split(",").map(s => s.trim()) : [],
                 date,
                 file: doc.fileName.split("\\").pop(),
-                lines: 0
+                lines: 0,
+                hash
             };
         }
 
@@ -47,7 +49,6 @@ export function extractAIBlocks(doc: vscode.TextDocument): AIBlock[] {
     return blocks;
 }
 
-// 🔥 NEW: Scan ENTIRE WORKSPACE
 export async function extractWorkspaceBlocks(): Promise<AIBlock[]> {
     const files = await vscode.workspace.findFiles('**/*.{js,ts,jsx,tsx}');
     let allBlocks: AIBlock[] = [];

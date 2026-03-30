@@ -3,187 +3,128 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.openReportPanel = openReportPanel;
 const vscode = require("vscode");
 const reportGenerator_1 = require("../core/reportGenerator");
+const os = require("os");
 async function openReportPanel() {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor)
-        return;
-    const blocks = (0, reportGenerator_1.extractAIBlocks)(editor.document);
+    const blocks = await (0, reportGenerator_1.extractWorkspaceBlocks)();
     const html = generateHTML(blocks);
-    const filePath = vscode.Uri.file(`${require('os').tmpdir()}/ai-report.html`);
+    const filePath = vscode.Uri.file(`${os.tmpdir()}/ai-report.html`);
     await vscode.workspace.fs.writeFile(filePath, Buffer.from(html));
     require('child_process').exec(`start chrome "${filePath.fsPath}"`);
 }
 function generateHTML(blocks) {
-    // =========================
-    // DATA PROCESSING
-    // =========================
     const empMap = {};
-    const fileMap = {};
     let totalLines = 0;
     blocks.forEach(b => {
         totalLines += b.lines;
-        empMap[b.employeeId] = (empMap[b.employeeId] || 0) + b.lines;
-        fileMap[b.file] = (fileMap[b.file] || 0) + b.lines;
+        if (!empMap[b.employeeId])
+            empMap[b.employeeId] = 0;
+        empMap[b.employeeId] += b.lines;
     });
-    const topEmp = Object.entries(empMap).sort((a, b) => b[1] - a[1])[0];
-    // =========================
-    // INSIGHT CARDS
-    // =========================
-    const cards = `
-    <div class="cards">
-        <div class="card">📊 Total AI Lines<br><b>${totalLines}</b></div>
-        <div class="card">👨‍💻 Top Employee<br><b>${topEmp ? topEmp[0] : "-"}</b></div>
-        <div class="card">📁 Files<br><b>${Object.keys(fileMap).length}</b></div>
-    </div>
-    `;
-    // =========================
-    // TABLE ROWS
-    // =========================
-    let rows = "";
-    blocks.forEach((b, i) => {
-        const tag = b.editedBy.length > 0 ? "edited" : "new";
-        rows += `
-        <tr onclick="openDetails(${i})">
-            <td>${i + 1}</td>
-            <td>${b.employeeId}</td>
-            <td>${b.date}</td>
-            <td>${b.editedBy.join(", ") || "-"}</td>
-            <td>${b.file.split("\\").pop()}</td>
-            <td>
-                <div class="progress">
-                    <div style="width:${(b.lines / totalLines) * 100}%"></div>
-                </div>
-                ${b.lines}
-            </td>
-            <td><span class="${tag}">${tag.toUpperCase()}</span></td>
-        </tr>
-        `;
-    });
-    // =========================
-    // HTML
-    // =========================
     return `
 <html>
 <head>
-<title>AI Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
     font-family: 'Segoe UI';
     background: linear-gradient(135deg, #0f172a, #1e293b);
     color: white;
+    margin: 0;
+}
+
+.container {
+    max-width: 1200px;
+    margin: auto;
     padding: 20px;
 }
 
-/* Cards */
-.cards {
-    display: flex;
-    gap: 20px;
+h1 {
+    color: #38bdf8;
 }
 
 .card {
-    background: rgba(255,255,255,0.05);
-    padding: 20px;
-    border-radius: 10px;
+    background: rgba(255,255,255,0.08);
     backdrop-filter: blur(10px);
+    padding: 15px;
+    margin: 10px;
+    border-radius: 12px;
+    display: inline-block;
 }
 
-/* Table */
+.controls {
+    margin-top: 20px;
+}
+
+select, input, button {
+    padding: 10px;
+    margin-right: 10px;
+    border-radius: 6px;
+    border: none;
+}
+
+button {
+    background: #38bdf8;
+    color: black;
+    cursor: pointer;
+}
+
+.chart-container {
+    width: 400px;
+    margin: 40px auto;
+}
+
 table {
     width: 100%;
     margin-top: 20px;
+    border-collapse: collapse;
 }
 
 th, td {
     padding: 10px;
+    border-bottom: 1px solid #334155;
 }
 
-/* Progress bar */
-.progress {
-    background: #334155;
-    height: 6px;
-    border-radius: 5px;
-}
-.progress div {
-    height: 6px;
-    background: #38bdf8;
-}
-
-/* Tags */
-.new {
-    color: #38bdf8;
-}
-.edited {
-    color: #facc15;
-}
-
-/* Charts */
-.chart-box {
-    width: 300px;
-    margin-top: 20px;
-}
-
-/* Details panel */
-#details {
-    margin-top: 20px;
-    padding: 20px;
+tr:hover {
     background: #1e293b;
-    border-radius: 10px;
-    display: none;
-}
-
-/* Search */
-input {
-    padding: 10px;
-    width: 300px;
-    margin-top: 20px;
+    cursor: pointer;
 }
 </style>
-
-<script>
-const data = ${JSON.stringify(blocks)};
-
-// FILTER
-function filterTable() {
-    const val = document.getElementById("search").value.toLowerCase();
-    document.querySelectorAll("tbody tr").forEach(row => {
-        row.style.display = row.innerText.toLowerCase().includes(val) ? "" : "none";
-    });
-}
-
-// DETAILS PANEL
-function openDetails(i) {
-    const b = data[i];
-    document.getElementById("details").style.display = "block";
-    document.getElementById("details").innerHTML =
-        "<h3>📄 File Details</h3>" +
-        "File: " + b.file + "<br>" +
-        "Employee: " + b.employeeId + "<br>" +
-        "Lines: " + b.lines + "<br>" +
-        "EditedBy: " + b.editedBy.join(", ");
-}
-
-// DOWNLOAD JSON
-function downloadJSON() {
-    const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "report.json";
-    a.click();
-}
-</script>
 
 </head>
 
 <body>
 
-<h1>🚀 AI Code Dashboard</h1>
+<div class="container">
 
-${cards}
+<h1>🚀 AI Dashboard</h1>
 
-<input id="search" onkeyup="filterTable()" placeholder="Search employee/file...">
+<h2>📊 Total AI Lines: ${totalLines}</h2>
 
-<h2>📂 File Details</h2>
+<div>
+${Object.entries(empMap).map(([id, lines]) => `
+    <div class="card">
+        <h3>${id}</h3>
+        <p>${lines} lines</p>
+    </div>
+`).join("")}
+</div>
+
+<div class="controls">
+    <select id="chartType" onchange="switchChart()">
+        <option value="pie">Pie Chart</option>
+        <option value="bar">Bar Chart</option>
+    </select>
+
+    <input id="filter" placeholder="Search file..." onkeyup="filterTable()" />
+
+    <button onclick="downloadReport()">⬇ Download Report</button>
+</div>
+
+<div class="chart-container">
+    <canvas id="chart"></canvas>
+</div>
 
 <table>
 <thead>
@@ -191,67 +132,96 @@ ${cards}
 <th>#</th>
 <th>Employee</th>
 <th>Date</th>
-<th>EditedBy</th>
 <th>File</th>
 <th>Lines</th>
-<th>Status</th>
 </tr>
 </thead>
 <tbody>
-${rows}
+${blocks.map((b, i) => `
+<tr onclick="showDetails(${i})">
+<td>${i + 1}</td>
+<td>${b.employeeId}</td>
+<td>${b.date}</td>
+<td>${b.file}</td>
+<td>${b.lines}</td>
+</tr>
+`).join("")}
 </tbody>
 </table>
 
-<div id="details"></div>
-
-<h2>📊 Charts</h2>
-
-<div class="chart-box">
-<canvas id="pie"></canvas>
 </div>
 
-<div class="chart-box">
-<canvas id="bar"></canvas>
-</div>
-
-<button onclick="downloadJSON()">⬇ Download JSON</button>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 
-// PIE (SMALL SIZE FIXED)
-new Chart(document.getElementById('pie'), {
-    type: 'pie',
-    data: {
-        labels: Object.keys(${JSON.stringify(empMap)}),
-        datasets: [{
-            data: Object.values(${JSON.stringify(empMap)}),
-            backgroundColor: ['#38bdf8','#facc15','#ef4444','#22c55e']
-        }]
-    },
-    options: {
-        responsive: false,
-        width: 300,
-        height: 300
-    }
-});
+const blocks = ${JSON.stringify(blocks)};
+const empMap = ${JSON.stringify(empMap)};
 
-// BAR
-new Chart(document.getElementById('bar'), {
-    type: 'bar',
-    data: {
-        labels: Object.keys(${JSON.stringify(fileMap)}),
-        datasets: [{
-            data: Object.values(${JSON.stringify(fileMap)}),
-            backgroundColor: '#38bdf8'
-        }]
-    },
-    options: {
-        responsive: false,
-        width: 300,
-        height: 300
+let chart;
+
+function renderChart(type) {
+
+    const ctx = document.getElementById("chart");
+
+    if (chart) chart.destroy();
+
+    if (type === "pie") {
+        chart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(empMap),
+                datasets: [{
+                    data: Object.values(empMap)
+                }]
+            }
+        });
     }
-});
+
+    if (type === "bar") {
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: blocks.map(b => b.file),
+                datasets: [{
+                    data: blocks.map(b => b.lines)
+                }]
+            }
+        });
+    }
+}
+
+function switchChart() {
+    const type = document.getElementById("chartType").value;
+    renderChart(type);
+}
+
+function showDetails(i) {
+    const b = blocks[i];
+    alert(
+        "File: " + b.file +
+        "\\nEmployee: " + b.employeeId +
+        "\\nLines: " + b.lines +
+        "\\nEditedBy: " + b.editedBy.join(", ")
+    );
+}
+
+function filterTable() {
+    const val = document.getElementById("filter").value.toLowerCase();
+    document.querySelectorAll("tbody tr").forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(val) ? "" : "none";
+    });
+}
+
+function downloadReport() {
+    const blob = new Blob([document.documentElement.outerHTML], {type: "text/html"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "AI_Report.html";
+    a.click();
+}
+
+// Default chart
+renderChart("pie");
+
 </script>
 
 </body>
