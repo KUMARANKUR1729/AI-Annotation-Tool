@@ -1,28 +1,32 @@
 {
   "name": "ai-annotator",
   "displayName": "AI Annotator",
-  "description": "AI Code Detection, Annotation, Tracking & Dashboard",
-  "version": "1.0.0",
+  "description": "Enterprise AI Code Detection, Annotation, Tracking & Analytics Dashboard",
+  "version": "2.0.0",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": ["Other"],
-  "activationEvents": [
-    "*"
-  ],
+  "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
 
   "contributes": {
     "commands": [
       {
         "command": "ai.resetId",
-        "title": "Reset Employee ID"
+        "title": "AI Annotator: Reset Employee ID"
       },
       {
         "command": "ai.showReport",
-        "title": "Show AI Report Dashboard"
+        "title": "AI Annotator: Open Dashboard"
       }
-    ]
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "ai.resetId" },
+        { "command": "ai.showReport" }
+      ]
+    }
   },
 
   "scripts": {
