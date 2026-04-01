@@ -1,14 +1,11 @@
 import * as vscode from 'vscode';
-import { AIBlock } from '../core/reportGenerator';
+import { AIBlock, Snapshot } from '../core/types';
 
-export interface Snapshot {
-    timestamp: string;
-    date: string;
-    blocks: AIBlock[];
-    totalLines: number;
-    aiLines: number;
-    aiPercent: number;
-}
+// FIX — Circular dependency broken: AIBlock and Snapshot now live in core/types.ts,
+//       imported here directly instead of from reportGenerator.
+
+// Re-export Snapshot so any existing consumers don't need import changes.
+export { Snapshot } from '../core/types';
 
 let _context: vscode.ExtensionContext;
 
@@ -16,29 +13,45 @@ export function initPersistence(context: vscode.ExtensionContext) {
     _context = context;
 }
 
+// FIX #11 — Snapshot no longer overwrites blindly on every dashboard open.
+//           A new snapshot is only written if at least 1 hour has passed since
+//           the last save for today, preserving earlier data points in the day.
 export function saveSnapshot(blocks: AIBlock[], totalLines: number, aiLines: number) {
     const snapshots = getSnapshots();
-    const today = new Date().toISOString().split('T')[0];
-    const aiPercent = totalLines > 0 ? parseFloat(((aiLines / totalLines) * 100).toFixed(1)) : 0;
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const aiPercent = totalLines > 0
+        ? parseFloat(((aiLines / totalLines) * 100).toFixed(1))
+        : 0;
 
     const snap: Snapshot = {
-        timestamp: new Date().toISOString(),
+        timestamp: now.toISOString(),
         date: today,
         blocks,
         totalLines,
         aiLines,
-        aiPercent
+        aiPercent,
     };
 
-    const existing = snapshots.findIndex(s => s.date === today);
-    if (existing >= 0) {
-        snapshots[existing] = snap;
+    const existingIdx = snapshots.findIndex(s => s.date === today);
+
+    if (existingIdx >= 0) {
+        const lastSaved = new Date(snapshots[existingIdx].timestamp);
+        const hoursSince = (now.getTime() - lastSaved.getTime()) / (1000 * 60 * 60);
+
+        // Only overwrite if at least 1 hour has elapsed — keeps earlier data intact
+        if (hoursSince < 1) return;
+
+        snapshots[existingIdx] = snap;
     } else {
         snapshots.push(snap);
     }
 
-    // Keep last 90 days
-    if (snapshots.length > 90) { snapshots.splice(0, snapshots.length - 90); }
+    // Rolling 90-day window
+    if (snapshots.length > 90) {
+        snapshots.splice(0, snapshots.length - 90);
+    }
+
     _context.globalState.update('ai_snapshots', snapshots);
 }
 
